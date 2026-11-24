@@ -4,8 +4,10 @@ import facade.impl.BookingFacadeImpl;
 import model.Event;
 import model.Ticket;
 import model.User;
+import model.UserAccount;
 import model.impl.EventImpl;
 import model.impl.TicketImpl;
+import model.impl.UserAccountImpl;
 import model.impl.UserImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,8 +16,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import service.EventService;
 import service.TicketService;
+import service.UserAccountService;
 import service.UserService;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 
@@ -33,12 +37,14 @@ class BookingFacadeImplTest {
     private EventService eventService;
     @Mock
     private TicketService ticketService;
+    @Mock
+    private UserAccountService userAccountService;
 
     private BookingFacadeImpl facade;
 
     @BeforeEach
     void setUp() {
-        facade = new BookingFacadeImpl(userService, eventService, ticketService);
+        facade = new BookingFacadeImpl(userService, eventService, ticketService, userAccountService);
     }
 
     @Test
@@ -62,7 +68,7 @@ class BookingFacadeImplTest {
     @Test
     void eventOperationsAreDelegatedToEventService() {
         Date day = new Date();
-        Event event = new EventImpl(1, "Concert", day);
+        Event event = new EventImpl(1, "Concert", day, BigDecimal.TEN);
         when(eventService.getEventById(1)).thenReturn(event);
         when(eventService.getEventsByTitle("Concert", 10, 1)).thenReturn(List.of(event));
         when(eventService.getEventsForDay(day, 10, 1)).thenReturn(List.of(event));
@@ -93,5 +99,16 @@ class BookingFacadeImplTest {
         assertEquals(List.of(ticket), facade.getBookedTickets(event, 10, 1));
         assertTrue(facade.cancelTicket(3));
         verify(ticketService).bookTicket(1, 2, 7, Ticket.Category.BAR);
+    }
+
+    @Test
+    void accountOperationsAreDelegatedToUserAccountService() {
+        UserAccount account = new UserAccountImpl(1, 1, new BigDecimal("40.00"));
+        when(userAccountService.getAccountByUserId(1)).thenReturn(account);
+        when(userAccountService.refillAccount(1, BigDecimal.TEN)).thenReturn(account);
+
+        assertEquals(account, facade.getUserAccount(1));
+        assertEquals(account, facade.refillAccount(1, BigDecimal.TEN));
+        verify(userAccountService).refillAccount(1, BigDecimal.TEN);
     }
 }

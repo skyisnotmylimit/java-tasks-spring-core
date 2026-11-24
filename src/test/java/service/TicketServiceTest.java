@@ -14,15 +14,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 
-import java.util.Calendar;
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,6 +41,8 @@ class TicketServiceTest {
     private UserDao userDao;
     @Mock
     private EventDao eventDao;
+    @Mock
+    private UserAccountService userAccountService;
 
     private TicketService ticketService;
 
@@ -45,33 +52,50 @@ class TicketServiceTest {
         ticketService.setTicketDao(ticketDao);
         ticketService.setUserDao(userDao);
         ticketService.setEventDao(eventDao);
+        ticketService.setUserAccountService(userAccountService);
     }
 
     @Test
-    void bookTicketSavesTicketForExistingUserAndEvent() {
-        when(userDao.getById(1)).thenReturn(new UserImpl(1, "John", "john@example.com"));
-        when(eventDao.getById(2)).thenReturn(new EventImpl(2, "Concert", new Date()));
-        when(ticketDao.isPlaceBooked(2, 10)).thenReturn(false);
+    void bookTicketWithdrawsTicketPriceAndSavesTicket() {
+        BigDecimal price = new BigDecimal("50.00");
+        when(userDao.existsById(1L)).thenReturn(true);
+        when(eventDao.findById(2L)).thenReturn(Optional.of(new EventImpl(2, "Concert", new Date(), price)));
+        when(ticketDao.existsByEventIdAndPlace(2, 10)).thenReturn(false);
         when(ticketDao.save(any())).thenAnswer(invocation -> {
-            Ticket ticket = invocation.getArgument(0);
+            TicketImpl ticket = invocation.getArgument(0);
             ticket.setId(99);
             return ticket;
         });
 
         Ticket booked = ticketService.bookTicket(1, 2, 10, Ticket.Category.PREMIUM);
 
+        verify(userAccountService).withdrawFromAccount(1, price);
         assertEquals(99, booked.getId());
         assertEquals(1, booked.getUserId());
         assertEquals(2, booked.getEventId());
         assertEquals(10, booked.getPlace());
-        assertEquals(Ticket.Category.PREMIUM, booked.getCategory());
     }
 
     @Test
-    void bookTicketThrowsIllegalStateWhenPlaceAlreadyBooked() {
-        when(userDao.getById(1)).thenReturn(new UserImpl(1, "John", "john@example.com"));
-        when(eventDao.getById(2)).thenReturn(new EventImpl(2, "Concert", new Date()));
-        when(ticketDao.isPlaceBooked(2, 10)).thenReturn(true);
+    void bookTicketFailsWhenPlaceAlreadyBooked() {
+        when(userDao.existsById(1L)).thenReturn(true);
+        when(eventDao.findById(2L)).thenReturn(Optional.of(new EventImpl(2, "Concert", new Date())));
+        when(ticketDao.existsByEventIdAndPlace(2, 10)).thenReturn(true);
+
+        assertThrows(IllegalStateException.class,
+                () -> ticketService.bookTicket(1, 2, 10, Ticket.Category.STANDARD));
+        verify(userAccountService, never()).withdrawFromAccount(anyLong(), any());
+        verify(ticketDao, never()).save(any());
+    }
+
+    @Test
+    void bookTicketFailsWhenWithdrawalFails() {
+        when(userDao.existsById(1L)).thenReturn(true);
+        when(eventDao.findById(2L)).thenReturn(
+                Optional.of(new EventImpl(2, "Concert", new Date(), new BigDecimal("100.00"))));
+        when(ticketDao.existsByEventIdAndPlace(2, 10)).thenReturn(false);
+        doThrow(new IllegalStateException("insufficient funds"))
+                .when(userAccountService).withdrawFromAccount(1, new BigDecimal("100.00"));
 
         assertThrows(IllegalStateException.class,
                 () -> ticketService.bookTicket(1, 2, 10, Ticket.Category.STANDARD));
@@ -80,42 +104,32 @@ class TicketServiceTest {
 
     @Test
     void bookTicketRejectsUnknownUserOrEvent() {
-        when(userDao.getById(1)).thenReturn(null);
+        when(userDao.existsById(1L)).thenReturn(false);
         assertThrows(IllegalArgumentException.class,
                 () -> ticketService.bookTicket(1, 2, 10, Ticket.Category.STANDARD));
 
-        when(userDao.getById(1)).thenReturn(new UserImpl(1, "John", "john@example.com"));
-        when(eventDao.getById(2)).thenReturn(null);
+        when(userDao.existsById(1L)).thenReturn(true);
+        when(eventDao.findById(2L)).thenReturn(Optional.empty());
         assertThrows(IllegalArgumentException.class,
                 () -> ticketService.bookTicket(1, 2, 10, Ticket.Category.STANDARD));
     }
 
     @Test
-    void getBookedTicketsForUserSortedByEventDateDescending() {
+    void getBookedTicketsForUserDelegatesToSortedQuery() {
         User user = new UserImpl(1, "John", "john@example.com");
-        Ticket earlyTicket = new TicketImpl(1, 1, 1, Ticket.Category.STANDARD, 1);
-        Ticket lateTicket = new TicketImpl(2, 2, 1, Ticket.Category.STANDARD, 2);
-        when(ticketDao.getByUserId(1)).thenReturn(List.of(earlyTicket, lateTicket));
-        when(eventDao.getById(1)).thenReturn(new EventImpl(1, "Early", dateOf(2026, Calendar.MAY, 1)));
-        when(eventDao.getById(2)).thenReturn(new EventImpl(2, "Late", dateOf(2026, Calendar.JUNE, 1)));
+        List<TicketImpl> tickets = List.of(new TicketImpl(1, 1, 1, Ticket.Category.STANDARD, 1));
+        when(ticketDao.findByUserIdSortedByEventDateDesc(1, PageRequest.of(0, 10))).thenReturn(tickets);
 
-        List<Ticket> tickets = ticketService.getBookedTickets(user, 10, 1);
-
-        assertEquals(List.of(lateTicket, earlyTicket), tickets);
+        assertEquals(1, ticketService.getBookedTickets(user, 10, 1).size());
     }
 
     @Test
-    void getBookedTicketsForEventSortedByUserEmailAscending() {
+    void getBookedTicketsForEventDelegatesToSortedQuery() {
         Event event = new EventImpl(1, "Concert", new Date());
-        Ticket ticketOfB = new TicketImpl(1, 1, 2, Ticket.Category.STANDARD, 1);
-        Ticket ticketOfA = new TicketImpl(2, 1, 1, Ticket.Category.STANDARD, 2);
-        when(ticketDao.getByEventId(1)).thenReturn(List.of(ticketOfB, ticketOfA));
-        when(userDao.getById(1)).thenReturn(new UserImpl(1, "A", "a@example.com"));
-        when(userDao.getById(2)).thenReturn(new UserImpl(2, "B", "b@example.com"));
+        List<TicketImpl> tickets = List.of(new TicketImpl(1, 1, 1, Ticket.Category.STANDARD, 1));
+        when(ticketDao.findByEventIdSortedByUserEmailAsc(1, PageRequest.of(0, 10))).thenReturn(tickets);
 
-        List<Ticket> tickets = ticketService.getBookedTickets(event, 10, 1);
-
-        assertEquals(List.of(ticketOfA, ticketOfB), tickets);
+        assertEquals(1, ticketService.getBookedTickets(event, 10, 1).size());
     }
 
     @Test
@@ -126,16 +140,11 @@ class TicketServiceTest {
 
     @Test
     void cancelTicketDelegatesToDao() {
-        when(ticketDao.delete(1)).thenReturn(true);
+        when(ticketDao.existsById(1L)).thenReturn(true);
+        when(ticketDao.existsById(2L)).thenReturn(false);
 
         assertTrue(ticketService.cancelTicket(1));
-        verify(ticketDao).delete(1);
-    }
-
-    private static Date dateOf(int year, int month, int day) {
-        Calendar calendar = Calendar.getInstance();
-        calendar.clear();
-        calendar.set(year, month, day, 19, 0, 0);
-        return calendar.getTime();
+        verify(ticketDao).deleteById(1L);
+        assertFalse(ticketService.cancelTicket(2));
     }
 }

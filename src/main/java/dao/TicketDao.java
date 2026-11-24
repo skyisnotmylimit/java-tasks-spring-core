@@ -1,55 +1,31 @@
 package dao;
 
-import model.Ticket;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import storage.Storage;
+import model.impl.TicketImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.CrudRepository;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
 /**
- * DAO for {@link Ticket} entities stored under the {@code ticket} namespace.
+ * DAO for {@link TicketImpl} entities based on Spring Data {@link CrudRepository}.
  */
-public class TicketDao extends AbstractDao<Ticket> {
+public interface TicketDao extends CrudRepository<TicketImpl, Long> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TicketDao.class);
+    /**
+     * Tickets of a user sorted by event date in descending order.
+     */
+    @Query("select t from TicketImpl t join EventImpl e on t.eventId = e.id "
+            + "where t.userId = :userId order by e.date desc")
+    List<TicketImpl> findByUserIdSortedByEventDateDesc(@Param("userId") long userId, Pageable pageable);
 
-    @Override
-    protected String getNamespace() {
-        return Storage.TICKET_NAMESPACE;
-    }
+    /**
+     * Tickets of an event sorted by user email in ascending order.
+     */
+    @Query("select t from TicketImpl t join UserImpl u on t.userId = u.id "
+            + "where t.eventId = :eventId order by u.email asc")
+    List<TicketImpl> findByEventIdSortedByUserEmailAsc(@Param("eventId") long eventId, Pageable pageable);
 
-    @Override
-    protected Class<Ticket> getEntityClass() {
-        return Ticket.class;
-    }
-
-    @Override
-    protected long getEntityId(Ticket entity) {
-        return entity.getId();
-    }
-
-    @Override
-    protected void setEntityId(Ticket entity, long id) {
-        entity.setId(id);
-    }
-
-    public List<Ticket> getByUserId(long userId) {
-        LOGGER.debug("Looking up tickets for user {}", userId);
-        return getAll().stream()
-                .filter(ticket -> ticket.getUserId() == userId)
-                .toList();
-    }
-
-    public List<Ticket> getByEventId(long eventId) {
-        LOGGER.debug("Looking up tickets for event {}", eventId);
-        return getAll().stream()
-                .filter(ticket -> ticket.getEventId() == eventId)
-                .toList();
-    }
-
-    public boolean isPlaceBooked(long eventId, int place) {
-        return getAll().stream()
-                .anyMatch(ticket -> ticket.getEventId() == eventId && ticket.getPlace() == place);
-    }
+    boolean existsByEventIdAndPlace(long eventId, int place);
 }

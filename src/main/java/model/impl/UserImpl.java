@@ -1,16 +1,30 @@
 package model.impl;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import model.User;
 
 import java.util.Objects;
 
 /**
- * Default implementation of {@link User}.
+ * Default implementation of {@link User} mapped with Hibernate ORM.
  */
+@Entity
+@Table(name = "users")
 public class UserImpl implements User {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
+
+    @Column(name = "name", nullable = false)
     private String name;
+
+    @Column(name = "email", nullable = false, unique = true)
     private String email;
 
     public UserImpl() {

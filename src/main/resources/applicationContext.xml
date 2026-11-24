@@ -2,36 +2,76 @@
 <beans xmlns="http://www.springframework.org/schema/beans"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:jpa="http://www.springframework.org/schema/data/jpa"
        xsi:schemaLocation="http://www.springframework.org/schema/beans
             http://www.springframework.org/schema/beans/spring-beans.xsd
             http://www.springframework.org/schema/context
-            http://www.springframework.org/schema/context/spring-context.xsd">
+            http://www.springframework.org/schema/context/spring-context.xsd
+            http://www.springframework.org/schema/tx
+            http://www.springframework.org/schema/tx/spring-tx.xsd
+            http://www.springframework.org/schema/data/jpa
+            http://www.springframework.org/schema/data/jpa/spring-jpa.xsd">
 
     <!-- Property placeholder resolved from external property file -->
     <context:property-placeholder location="classpath:application.properties"/>
 
-    <!-- Common in-memory storage bean -->
-    <bean id="storage" class="storage.Storage"/>
+    <!-- Enables annotation-based post-processing (required by Spring Data repository factories) -->
+    <context:annotation-config/>
 
-    <!-- Bean post-processor that initializes the storage with prepared data from a file -->
-    <bean id="storageDataInitializer" class="storage.StorageDataInitializer">
-        <property name="dataFilePath" value="${storage.data.file}"/>
+    <!-- DataSource for the chosen DBMS (H2) -->
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="${db.driver}"/>
+        <property name="url" value="${db.url}"/>
+        <property name="username" value="${db.username}"/>
+        <property name="password" value="${db.password}"/>
     </bean>
 
-    <!-- DAO beans: storage is injected in a setter-based way -->
-    <bean id="userDao" class="dao.UserDao">
-        <property name="storage" ref="storage"/>
+    <!-- Creates the database schema and loads prepared data on application start -->
+    <bean id="dataSourceInitializer" class="org.springframework.jdbc.datasource.init.DataSourceInitializer">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="databasePopulator">
+            <bean class="org.springframework.jdbc.datasource.init.ResourceDatabasePopulator">
+                <property name="scripts">
+                    <list>
+                        <value>${db.schema.script}</value>
+                        <value>${db.data.script}</value>
+                    </list>
+                </property>
+            </bean>
+        </property>
     </bean>
-    <bean id="eventDao" class="dao.EventDao">
-        <property name="storage" ref="storage"/>
+
+    <!-- Hibernate JPA configuration -->
+    <bean id="entityManagerFactory" class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean"
+          depends-on="dataSourceInitializer">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="packagesToScan" value="model.impl"/>
+        <property name="jpaVendorAdapter">
+            <bean class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter"/>
+        </property>
+        <property name="jpaProperties">
+            <props>
+                <prop key="hibernate.show_sql">${hibernate.show_sql}</prop>
+                <prop key="hibernate.format_sql">${hibernate.format_sql}</prop>
+                <prop key="hibernate.hbm2ddl.auto">${hibernate.hbm2ddl.auto}</prop>
+            </props>
+        </property>
     </bean>
-    <bean id="ticketDao" class="dao.TicketDao">
-        <property name="storage" ref="storage"/>
+
+    <!-- Declarative transaction management -->
+    <bean id="transactionManager" class="org.springframework.orm.jpa.JpaTransactionManager">
+        <property name="entityManagerFactory" ref="entityManagerFactory"/>
     </bean>
+    <tx:annotation-driven transaction-manager="transactionManager"/>
+
+    <!-- Spring Data repositories (DAO objects) -->
+    <jpa:repositories base-package="dao"/>
 
     <!-- Service beans: DAOs are injected using autowiring -->
     <bean id="userService" class="service.UserService" autowire="byType"/>
     <bean id="eventService" class="service.EventService" autowire="byType"/>
+    <bean id="userAccountService" class="service.UserAccountService" autowire="byType"/>
     <bean id="ticketService" class="service.TicketService" autowire="byType"/>
 
     <!-- Facade: services are injected using constructor-based injection -->
@@ -39,6 +79,7 @@
         <constructor-arg ref="userService"/>
         <constructor-arg ref="eventService"/>
         <constructor-arg ref="ticketService"/>
+        <constructor-arg ref="userAccountService"/>
     </bean>
 
 </beans>

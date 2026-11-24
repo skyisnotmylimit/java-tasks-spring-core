@@ -4,18 +4,21 @@ import facade.BookingFacade;
 import model.Event;
 import model.Ticket;
 import model.User;
+import model.UserAccount;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import service.EventService;
 import service.TicketService;
+import service.UserAccountService;
 import service.UserService;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 
 /**
  * Default implementation of {@link BookingFacade} which delegates method calls
- * to {@link UserService}, {@link EventService} and {@link TicketService}.
+ * to {@link UserService}, {@link EventService}, {@link TicketService} and {@link UserAccountService}.
  * <p>
  * Services are injected using constructor-based injection.
  */
@@ -26,11 +29,14 @@ public class BookingFacadeImpl implements BookingFacade {
     private final UserService userService;
     private final EventService eventService;
     private final TicketService ticketService;
+    private final UserAccountService userAccountService;
 
-    public BookingFacadeImpl(UserService userService, EventService eventService, TicketService ticketService) {
+    public BookingFacadeImpl(UserService userService, EventService eventService,
+                             TicketService ticketService, UserAccountService userAccountService) {
         this.userService = userService;
         this.eventService = eventService;
         this.ticketService = ticketService;
+        this.userAccountService = userAccountService;
         LOGGER.info("BookingFacade initialized");
     }
 
@@ -128,5 +134,17 @@ public class BookingFacadeImpl implements BookingFacade {
     public boolean cancelTicket(long ticketId) {
         LOGGER.debug("cancelTicket({})", ticketId);
         return ticketService.cancelTicket(ticketId);
+    }
+
+    @Override
+    public UserAccount getUserAccount(long userId) {
+        LOGGER.debug("getUserAccount({})", userId);
+        return userAccountService.getAccountByUserId(userId);
+    }
+
+    @Override
+    public UserAccount refillAccount(long userId, BigDecimal amount) {
+        LOGGER.debug("refillAccount({}, {})", userId, amount);
+        return userAccountService.refillAccount(userId, amount);
     }
 }

@@ -9,7 +9,7 @@
     <logger name="dao" level="DEBUG"/>
     <logger name="service" level="DEBUG"/>
     <logger name="facade" level="DEBUG"/>
-    <logger name="storage" level="DEBUG"/>
+    <logger name="org.hibernate.SQL" level="DEBUG"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

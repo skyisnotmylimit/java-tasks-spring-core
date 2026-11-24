@@ -1,29 +1,52 @@
 package model.impl;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Temporal;
+import jakarta.persistence.TemporalType;
 import model.Event;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.Objects;
 
 /**
- * Default implementation of {@link Event}.
+ * Default implementation of {@link Event} mapped with Hibernate ORM.
  */
+@Entity
+@Table(name = "events")
 public class EventImpl implements Event {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
+
+    @Column(name = "title", nullable = false)
     private String title;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm", timezone = "UTC")
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "event_date", nullable = false)
     private Date date;
+
+    @Column(name = "ticket_price", nullable = false, precision = 19, scale = 2)
+    private BigDecimal ticketPrice = BigDecimal.ZERO;
 
     public EventImpl() {
     }
 
     public EventImpl(long id, String title, Date date) {
+        this(id, title, date, BigDecimal.ZERO);
+    }
+
+    public EventImpl(long id, String title, Date date, BigDecimal ticketPrice) {
         this.id = id;
         this.title = title;
         this.date = date;
+        this.ticketPrice = ticketPrice;
     }
 
     @Override
@@ -57,6 +80,16 @@ public class EventImpl implements Event {
     }
 
     @Override
+    public BigDecimal getTicketPrice() {
+        return ticketPrice;
+    }
+
+    @Override
+    public void setTicketPrice(BigDecimal ticketPrice) {
+        this.ticketPrice = ticketPrice;
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -74,6 +107,6 @@ public class EventImpl implements Event {
 
     @Override
     public String toString() {
-        return "Event{id=" + id + ", title='" + title + "', date=" + date + "}";
+        return "Event{id=" + id + ", title='" + title + "', date=" + date + ", ticketPrice=" + ticketPrice + "}";
     }
 }

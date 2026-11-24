@@ -3,7 +3,9 @@ package facade;
 import model.Event;
 import model.Ticket;
 import model.User;
+import model.UserAccount;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 
@@ -140,5 +142,21 @@ public interface BookingFacade {
      * @return Flag whether anything has been canceled.
      */
     boolean cancelTicket(long ticketId);
+
+    /**
+     * Gets prepaid account of the specified user.
+     * @param userId User id.
+     * @return UserAccount or null if the user has no account yet.
+     */
+    UserAccount getUserAccount(long userId);
+
+    /**
+     * Refills prepaid account of the specified user by the given amount.
+     * Creates the account if it does not exist yet.
+     * @param userId User id.
+     * @param amount Amount of money to add, must be positive.
+     * @return Refilled UserAccount.
+     */
+    UserAccount refillAccount(long userId, BigDecimal amount);
 
 }

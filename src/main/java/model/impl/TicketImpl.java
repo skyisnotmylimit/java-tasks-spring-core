@@ -1,18 +1,41 @@
 package model.impl;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import model.Ticket;
 
 import java.util.Objects;
 
 /**
- * Default implementation of {@link Ticket}.
+ * Default implementation of {@link Ticket} mapped with Hibernate ORM.
  */
+@Entity
+@Table(name = "tickets",
+        uniqueConstraints = @UniqueConstraint(name = "uk_tickets_event_place", columnNames = {"event_id", "place"}))
 public class TicketImpl implements Ticket {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
+
+    @Column(name = "event_id", nullable = false)
     private long eventId;
+
+    @Column(name = "user_id", nullable = false)
     private long userId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false, length = 20)
     private Category category;
+
+    @Column(name = "place", nullable = false)
     private int place;
 
     public TicketImpl() {

@@ -8,10 +8,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -35,33 +38,38 @@ class UserServiceTest {
     }
 
     @Test
-    void getUserByIdDelegatesToDao() {
-        User user = new UserImpl(1, "John", "john@example.com");
-        when(userDao.getById(1)).thenReturn(user);
+    void getUserByIdReturnsUserOrNull() {
+        UserImpl user = new UserImpl(1, "John", "john@example.com");
+        when(userDao.findById(1L)).thenReturn(Optional.of(user));
+        when(userDao.findById(2L)).thenReturn(Optional.empty());
 
         assertEquals(user, userService.getUserById(1));
+        assertNull(userService.getUserById(2));
     }
 
     @Test
     void getUserByEmailDelegatesToDao() {
-        User user = new UserImpl(1, "John", "john@example.com");
-        when(userDao.getByEmail("john@example.com")).thenReturn(user);
+        UserImpl user = new UserImpl(1, "John", "john@example.com");
+        when(userDao.findByEmail("john@example.com")).thenReturn(Optional.of(user));
 
         assertEquals(user, userService.getUserByEmail("john@example.com"));
     }
 
     @Test
-    void getUsersByNameDelegatesToDao() {
-        List<User> users = List.of(new UserImpl(1, "John", "john@example.com"));
-        when(userDao.getByName("John", 10, 1)).thenReturn(users);
+    void getUsersByNameUsesPagination() {
+        List<UserImpl> users = List.of(new UserImpl(1, "John", "john@example.com"));
+        when(userDao.findByNameContainingOrderByNameAsc("John", PageRequest.of(1, 5))).thenReturn(users);
 
-        assertEquals(users, userService.getUsersByName("John", 10, 1));
+        List<User> result = userService.getUsersByName("John", 5, 2);
+
+        assertEquals(1, result.size());
+        assertEquals(users.get(0), result.get(0));
     }
 
     @Test
     void createUserSavesNewUser() {
-        User user = new UserImpl(0, "John", "john@example.com");
-        when(userDao.getByEmail("john@example.com")).thenReturn(null);
+        UserImpl user = new UserImpl(0, "John", "john@example.com");
+        when(userDao.findByEmail("john@example.com")).thenReturn(Optional.empty());
         when(userDao.save(user)).thenReturn(new UserImpl(1, "John", "john@example.com"));
 
         User created = userService.createUser(user);
@@ -72,8 +80,8 @@ class UserServiceTest {
 
     @Test
     void createUserRejectsDuplicateEmail() {
-        when(userDao.getByEmail("john@example.com"))
-                .thenReturn(new UserImpl(1, "Existing", "john@example.com"));
+        when(userDao.findByEmail("john@example.com"))
+                .thenReturn(Optional.of(new UserImpl(1, "Existing", "john@example.com")));
 
         assertThrows(IllegalArgumentException.class,
                 () -> userService.createUser(new UserImpl(0, "John", "john@example.com")));
@@ -87,17 +95,19 @@ class UserServiceTest {
 
     @Test
     void updateUserReturnsNullWhenNotFound() {
-        User user = new UserImpl(42, "Ghost", "ghost@example.com");
-        when(userDao.update(user)).thenReturn(null);
+        when(userDao.existsById(42L)).thenReturn(false);
 
-        assertNull(userService.updateUser(user));
+        assertNull(userService.updateUser(new UserImpl(42, "Ghost", "ghost@example.com")));
+        verify(userDao, never()).save(any());
     }
 
     @Test
-    void deleteUserDelegatesToDao() {
-        when(userDao.delete(1)).thenReturn(true);
+    void deleteUserReturnsFalseWhenMissing() {
+        when(userDao.existsById(1L)).thenReturn(true);
+        when(userDao.existsById(2L)).thenReturn(false);
 
         assertTrue(userService.deleteUser(1));
-        verify(userDao).delete(1);
+        verify(userDao).deleteById(1L);
+        assertFalse(userService.deleteUser(2));
     }
 }

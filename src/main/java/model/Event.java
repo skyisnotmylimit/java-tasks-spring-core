@@ -1,5 +1,6 @@
 package model;
 
+import java.math.BigDecimal;
 import java.util.Date;
 
 /**
@@ -16,4 +17,11 @@ public interface Event {
     void setTitle(String title);
     Date getDate();
     void setDate(Date date);
+
+    /**
+     * Price of a single ticket for the event.
+     * @return Ticket price.
+     */
+    BigDecimal getTicketPrice();
+    void setTicketPrice(BigDecimal ticketPrice);
 }
