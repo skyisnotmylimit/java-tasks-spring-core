@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/context
+            http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!-- Property placeholder resolved from external property file -->
+    <context:property-placeholder location="classpath:application.properties"/>
+
+    <!-- Common in-memory storage bean -->
+    <bean id="storage" class="storage.Storage"/>
+
+    <!-- Bean post-processor that initializes the storage with prepared data from a file -->
+    <bean id="storageDataInitializer" class="storage.StorageDataInitializer">
+        <property name="dataFilePath" value="${storage.data.file}"/>
+    </bean>
+
+    <!-- DAO beans: storage is injected in a setter-based way -->
+    <bean id="userDao" class="dao.UserDao">
+        <property name="storage" ref="storage"/>
+    </bean>
+    <bean id="eventDao" class="dao.EventDao">
+        <property name="storage" ref="storage"/>
+    </bean>
+    <bean id="ticketDao" class="dao.TicketDao">
+        <property name="storage" ref="storage"/>
+    </bean>
+
+    <!-- Service beans: DAOs are injected using autowiring -->
+    <bean id="userService" class="service.UserService" autowire="byType"/>
+    <bean id="eventService" class="service.EventService" autowire="byType"/>
+    <bean id="ticketService" class="service.TicketService" autowire="byType"/>
+
+    <!-- Facade: services are injected using constructor-based injection -->
+    <bean id="bookingFacade" class="facade.impl.BookingFacadeImpl">
+        <constructor-arg ref="userService"/>
+        <constructor-arg ref="eventService"/>
+        <constructor-arg ref="ticketService"/>
+    </bean>
+
+</beans>
